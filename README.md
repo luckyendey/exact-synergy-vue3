@@ -23,14 +23,18 @@ A responsive, professional employee card grid with:
 
 ## Step-by-Step Implementation Guide
 
-### **Step 1: Set Up Required Files**
+### Step 1: Create the Main Page
 
-Place these files in your Exact Synergy `docs` folder:
-- `vue-3.5.22.js` - Vue 3 framework (local file)
-- `element-plus.js` - Element Plus UI library (local file)
-- `element-plus.css` - Element Plus styling (local file)
+Create a new page named `CustomPeopleCard.aspx` in your Exact Synergy `docs` folder. This will host the Vue app and the Element Plus UI. We'll wire up resources, structure, and logic in the next steps.
 
-Reference them in your HTML:
+### Step 2: Reference Required Files
+
+Place these files in your `docs` folder and reference them in the page:
+- `vue-3.5.22.js` — Vue 3 framework (local file)
+- `element-plus.js` — Element Plus UI library (local file)
+- `element-plus.css` — Element Plus styling (local file)
+
+Add these to your page head/footer:
 ```html
 <!-- Import CSS -->
 <link href="Exact.css" type="text/css" rel="stylesheet" />
@@ -42,111 +46,11 @@ Reference them in your HTML:
 <script src="https://unpkg.com/@element-plus/icons-vue"></script>
 ```
 
-💡 **Note**: Vue and Element Plus are loaded as local files, while icons are loaded from CDN
+Note: Vue and Element Plus are loaded as local files; Element Plus icons are loaded from CDN.
 
-### **Step 2: Create the Callback Page**
+### Step 3: Create the Structure for the Main Page
 
-Create `CustomPeopleCardCallback.aspx` to fetch employee data from the database:
-
-```csharp
-private void Page_Load()
-{
-    try
-    {
-        var action = Convert.ToInt16(Action.Value);
-
-        switch (action)
-        {
-            case 1:
-                {
-                    // Get employees data using QueryBuilder
-                    QueryBuilder qb = new QueryBuilder(conn);
-                    qb.AppendSelect(@"
-                        res_id employeeId, 
-                        fullname employeeName, 
-                        jt.descr50 jobTitle,
-                        mail email, 
-                        ldatindienst joinDate, 
-                        Picture picture
-                    ");
-                    qb.AppendFrom("humres h");
-                    qb.AppendFrom(JoinType.Inner, "hrjbtl jt", "h.job_title = jt.job_title");
-                    qb.AppendWhere("res_id", Operators.GreaterThan, 0);
-
-                    DataSet ds = (DataSet)conn.Query(qb, null, EDLQueryOptions.DataSet);
-                    DataTable dt = ds.Tables[0];
-
-                    var employees = new List<object>();
-                    foreach (DataRow row in dt.Rows)
-                    {
-                        string pictureUrl = null;
-
-                        // Convert byte[] to base64 data URI if picture exists
-                        if (row["picture"] != DBNull.Value && row["picture"] != null)
-                        {
-                            byte[] imageBytes = row["picture"] as byte[];
-                            if (imageBytes != null && imageBytes.Length > 0)
-                            {
-                                string base64String = Convert.ToBase64String(imageBytes);
-                                pictureUrl = "data:image/jpeg;base64," + base64String;
-                            }
-                        }
-
-                        employees.Add(new
-                        {
-                            employeeId = row["employeeId"],
-                            employeeName = row["employeeName"],
-                            jobTitle = row["jobTitle"],
-                            email = row["email"],
-                            joinDate = row["joinDate"] != DBNull.Value ? 
-                                Convert.ToDateTime(row["joinDate"]).ToString("yyyy-MM-dd") : null,
-                            picture = pictureUrl
-                        });
-                    }
-
-                    WriteResponse(new { success = true, data = employees });
-                    break;
-                }
-            default:
-                WriteResponse(new { success = false, message = "Invalid action" }, 400);
-                break;
-        }
-    }
-    catch (Exception ex)
-    {
-        WriteResponse(ex, 400);
-    }
-}
-
-private void WriteResponse(object obj, int statusCode = 200)
-{
-    var settings = new JsonSerializerSettings
-    {
-        Formatting = Formatting.None
-    };
-    Response.Clear();
-    Response.ContentType = "application/json; charset=utf-8";
-    Response.StatusCode = statusCode;
-    Response.Write(JsonConvert.SerializeObject(obj, settings));
-    
-    HttpContext.Current.Response.Flush();
-    HttpContext.Current.Response.SuppressContent = true;
-    HttpContext.Current.ApplicationInstance.CompleteRequest();
-}
-```
-
-**What This Code Does:**
-- Uses QueryBuilder to join `humres` and `hrjbtl` tables
-- Converts byte[] pictures to base64 data URIs with `data:image/jpeg;base64,` prefix
-- Handles null pictures gracefully (returns null for pictureUrl)
-- Returns JSON response with `{ success: true, data: [...] }` structure
-- Uses Newtonsoft.Json for serialization with proper error handling
-
-### **Step 3: Create the Main Page**
-
-Now, create `CustomPeopleCard.aspx` with Vue 3 integration.
-
-**HTML Structure:**
+Add the Vue app template and Element Plus components inside your page body:
 ```html
 <div id="app" style="clear: left;" v-cloak>
   <div class="people-container">
@@ -160,14 +64,9 @@ Now, create `CustomPeopleCard.aspx` with Vue 3 integration.
     
     <el-skeleton v-if="loading" :rows="6" animated></el-skeleton>
     <div v-else class="people-grid">
-      <el-card v-for="person in employees" :key="person.employeeId" 
-               shadow="hover" class="person-card" 
-               @click="navigateToEmployee(person.employeeId)">
+      <el-card v-for="person in employees" :key="person.employeeId" shadow="hover" class="person-card" @click="navigateToEmployee(person.employeeId)">
         <div class="avatar-container">
-          <el-avatar v-if="hasValidPicture(person)" 
-                     :src="person.picture" :size="80" 
-                     class="person-avatar">
-          </el-avatar>
+          <el-avatar v-if="hasValidPicture(person)" :src="person.picture" :size="80" class="person-avatar"></el-avatar>
           <el-avatar v-else :size="80" class="person-avatar-initials">
             {{ getInitials(person.employeeName) }}
           </el-avatar>
@@ -190,25 +89,43 @@ Now, create `CustomPeopleCard.aspx` with Vue 3 integration.
       </el-card>
     </div>
   </div>
+  
 </div>
 ```
 
-**Key Features You'll Implement:**
-1. **Vue 3 Composition** - Modern reactive data binding with `createApp`
-2. **v-cloak Directive** - Prevents flash of uncompiled templates (hides app until Vue mounts)
-3. **jQuery AJAX Integration** - Fetch data from callback with proper error handling
-4. **Element Plus Components** - `el-button`, `el-avatar`, `el-icon`, `el-skeleton`, `el-card`, `ElMessage`
-5. **markRaw() for Icons** - Prevents unnecessary reactivity overhead on icon components
-6. **Picture Validation** - `hasValidPicture()` checks for valid base64 data URIs, falls back to initials
-7. **Initials Avatar** - Automatic generation from employee names (e.g., "Lucky Endey" → "LE")
-8. **Responsive Grid** - CSS Grid with `repeat(auto-fill, minmax(280px, 1fr))`
-9. **Smooth Animations** - Hover effects with `transform: translateY(-4px)` and shadow transitions
-10. **Loading States** - Skeleton loader with 6 rows while fetching data
-11. **Dynamic Icon Binding** - Uses `:icon="Plus"` for Element Plus button icons
-12. **Context Preservation** - Uses `var self = this` to maintain Vue context in jQuery callbacks
-13. **Navigation** - Click card to view employee detail, button to add new employee
+Add styling to the page head (or a CSS file) to complete the UI:
+```css
+/* Hide Vue templates until ready */
+[v-cloak] { display: none !important; }
 
-### **Step 4: Implement the Vue.js Logic**
+/* Layout */
+.people-container { padding: 20px; background: #f0f2f5; }
+.people-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; margin-top: 30px; }
+
+/* Card */
+.person-card { cursor: pointer; transition: all 0.3s ease; text-align: center; border-radius: 16px; background: #fff; }
+.person-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
+.person-name { color: #1f2937; font-size: 18px; font-weight: 700; margin: 0 0 4px; line-height: 1.4; }
+.person-title { color: #6b7280; font-size: 13px; margin: 0 0 16px; font-weight: 400; line-height: 1.4; }
+
+/* Avatar */
+.avatar-container { display: flex; justify-content: center; margin-bottom: 16px; }
+.person-avatar, .person-avatar-initials { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.person-avatar-initials { background: linear-gradient(135deg, #0F7CBE 0%, #6ED0F6 100%) !important; font-size: 36px; font-weight: 700; color: #fff; }
+
+/* Info */
+.info-item { display: flex; align-items: center; justify-content: center; margin-bottom: 8px; font-size: 12px; color: #6b7280; }
+.info-item:last-child { margin-bottom: 0; }
+.info-icon { margin-right: 6px; color: #0f7cbe; font-size: 14px; }
+.info-text { color: #374151; }
+
+/* Header */
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.page-title { font-size: 28px; font-weight: 700; color: #1f2937; margin: 0; }
+.employee-count { color: #6b7280; font-size: 14px; margin-top: 4px; }
+```
+
+### Step 4: Implement Vue.js Logic
 
 ```javascript
 const { createApp, markRaw } = Vue;
@@ -216,134 +133,154 @@ const { createApp, markRaw } = Vue;
 const app = createApp({
   data() {
     return {
-      Plus: markRaw(ElementPlusIconsVue.Plus), // Prevent reactivity on icons
+      Plus: markRaw(ElementPlusIconsVue.Plus),
       Calendar: markRaw(ElementPlusIconsVue.Calendar),
       Message: markRaw(ElementPlusIconsVue.Message),
       employees: [],
       loading: true
-    }
+    };
   },
   methods: {
     hasValidPicture(person) {
-      // Validate picture is a proper base64 data URI
-      return person.picture && 
-             person.picture.length > 0 && 
-             person.picture.startsWith('data:image');
+      return person.picture && person.picture.length > 0 && person.picture.startsWith('data:image');
     },
     getInitials(name) {
-      // Extract initials from full name (e.g., "Lucky Endey" → "LE")
       if (!name) return '??';
       const words = name.trim().split(/\s+/);
-      if (words.length === 1) {
-        return words[0].substring(0, 2).toUpperCase();
-      }
+      if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
       return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+    },
+    formatDate(dateString) {
+      if (!dateString) return 'N/A';
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     },
     loadEmployees() {
       this.loading = true;
-      var url = 'CustomPeopleCardCallback.aspx?Action=1';
-      var self = this;
-
+      const url = 'CustomPeopleCardCallback.aspx?Action=1';
+      const self = this;
       $.ajax({
-        type: "GET",
-        url: url,
-        dataType: 'json',
-        success: function (response) {
+        type: 'GET', url, dataType: 'json',
+        success(response) {
           if (response.success) {
             self.employees = response.data;
-            ElementPlus.ElMessage({
-              message: 'Employees loaded successfully',
-              type: 'success',
-              duration: 2000
-            });
+            ElementPlus.ElMessage({ message: 'Employees loaded successfully', type: 'success', duration: 2000 });
           } else {
-            ElementPlus.ElMessage({
-              message: 'Failed to load employees: ' + response.message,
-              type: 'error',
-              duration: 3000
-            });
+            ElementPlus.ElMessage({ message: 'Failed to load employees: ' + response.message, type: 'error', duration: 3000 });
           }
           self.loading = false;
         },
-        error: function (xhr, status, error) {
+        error(xhr, status, error) {
           console.error('Error:', error);
           console.error('Response Text:', xhr.responseText);
-          ElementPlus.ElMessage({
-            message: 'Failed to retrieve data: ' + error,
-            type: 'error',
-            duration: 3000
-          });
+          ElementPlus.ElMessage({ message: 'Failed to retrieve data: ' + error, type: 'error', duration: 3000 });
           self.loading = false;
         }
       });
     },
-    navigateToEmployee(employeeId) {
-      window.location.href = 'HRMResourceCard.aspx?ID=' + employeeId;
-    },
-    addEmployee() {
-      window.location.href = 'HRMResource.aspx?BCAction=0';
-    }
+    navigateToEmployee(employeeId) { window.location.href = 'HRMResourceCard.aspx?ID=' + employeeId; },
+    addEmployee() { window.location.href = 'HRMResource.aspx?BCAction=0'; }
   },
-  mounted() {
-    this.loadEmployees();
-  }
+  mounted() { this.loadEmployees(); }
 });
 
 app.use(ElementPlus);
-
-// Register all Element Plus icons globally
-for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-  app.component(key, component);
-}
-
+for (const [key, component] of Object.entries(ElementPlusIconsVue)) app.component(key, component);
 app.mount('#app');
 ```
 
-**Important Implementation Notes:**
-- Use `var self = this` to preserve Vue context in jQuery callbacks
-- Implement proper error handling with success and error callbacks
-- Use Element Plus message notifications with custom durations
-- Set up navigation to employee detail page: `HRMResourceCard.aspx?ID={employeeId}`
-- Configure add new employee navigation: `HRMResource.aspx?BCAction=0`
+Notes:
+- Use `var self = this` (or `const self = this`) inside jQuery callbacks to preserve Vue context.
+- Element Plus `ElMessage` is used for success/error notifications.
+- Card click navigates to `HRMResourceCard.aspx?ID={employeeId}`; the Add button to `HRMResource.aspx?BCAction=0`.
 
-### **Step 5: Add CSS Styling**
+### Step 5: Create the Callback Page
 
-```css
-/* Hide Vue templates until ready */
-[v-cloak] {
-  display: none !important;
+Create `CustomPeopleCardCallback.aspx` to fetch employee data from the database:
+
+```csharp
+private void Page_Load()
+{
+    try
+    {
+        var action = Convert.ToInt16(Action.Value);
+        switch (action)
+        {
+            case 1:
+            {
+                // Get employees data using QueryBuilder
+                QueryBuilder qb = new QueryBuilder(conn);
+                qb.AppendSelect(@"
+                    res_id employeeId,
+                    fullname employeeName,
+                    jt.descr50 jobTitle,
+                    mail email,
+                    ldatindienst joinDate,
+                    Picture picture
+                ");
+                qb.AppendFrom("humres h");
+                qb.AppendFrom(JoinType.Inner, "hrjbtl jt", "h.job_title = jt.job_title");
+                qb.AppendWhere("res_id", Operators.GreaterThan, 0);
+
+                DataSet ds = (DataSet)conn.Query(qb, null, EDLQueryOptions.DataSet);
+                DataTable dt = ds.Tables[0];
+
+                var employees = new List<object>();
+                foreach (DataRow row in dt.Rows)
+                {
+                    string pictureUrl = null;
+                    if (row["picture"] != DBNull.Value && row["picture"] != null)
+                    {
+                        byte[] imageBytes = row["picture"] as byte[];
+                        if (imageBytes != null && imageBytes.Length > 0)
+                        {
+                            string base64String = Convert.ToBase64String(imageBytes);
+                            pictureUrl = "data:image/jpeg;base64," + base64String;
+                        }
+                    }
+                    employees.Add(new
+                    {
+                        employeeId = row["employeeId"],
+                        employeeName = row["employeeName"],
+                        jobTitle = row["jobTitle"],
+                        email = row["email"],
+                        joinDate = row["joinDate"] != DBNull.Value ? Convert.ToDateTime(row["joinDate"]).ToString("yyyy-MM-dd") : null,
+                        picture = pictureUrl
+                    });
+                }
+
+                WriteResponse(new { success = true, data = employees });
+                break;
+            }
+            default:
+                WriteResponse(new { success = false, message = "Invalid action" }, 400);
+                break;
+        }
+    }
+    catch (Exception ex)
+    {
+        WriteResponse(ex, 400);
+    }
 }
 
-/* Responsive grid layout */
-.people-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 24px;
-}
-
-/* Card styling */
-.person-card {
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-  text-align: center;
-}
-
-.person-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-
-/* Avatar with gradient for initials */
-.person-avatar-initials {
-  background: linear-gradient(135deg, #0F7CBE 0%, #6ED0F6 100%) !important;
-  font-size: 36px;
-  font-weight: 700;
-  color: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+private void WriteResponse(object obj, int statusCode = 200)
+{
+    var settings = new JsonSerializerSettings { Formatting = Formatting.None };
+    Response.Clear();
+    Response.ContentType = "application/json; charset=utf-8";
+    Response.StatusCode = statusCode;
+    Response.Write(JsonConvert.SerializeObject(obj, settings));
+    HttpContext.Current.Response.Flush();
+    HttpContext.Current.Response.SuppressContent = true;
+    HttpContext.Current.ApplicationInstance.CompleteRequest();
 }
 ```
+
+What this does:
+- Joins `humres` and `hrjbtl` tables via QueryBuilder
+- Converts `byte[]` pictures to base64 data URIs (`data:image/jpeg;base64,....`)
+- Returns `{ success: true, data: [...] }` JSON or an error with status 400
+- Uses Newtonsoft.Json for serialization
 
 ## 📦 Get the Complete Code
 
